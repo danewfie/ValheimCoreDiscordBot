@@ -50,6 +50,7 @@ namespace ValheimCoreDiscordBot.Valheim
         WorldSaved,
         FoundLocation,
         Debug,
-        DebugEvent
+        DebugEvent,
+        GameStatusUpdate
     }
 }

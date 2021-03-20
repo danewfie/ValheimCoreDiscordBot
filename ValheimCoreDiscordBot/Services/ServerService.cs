@@ -1,4 +1,5 @@
-﻿using Discord.WebSocket;
+﻿using Discord;
+using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -42,6 +43,18 @@ namespace ValheimCoreDiscordBot.Services
             _server.output.CollectionChanged += Output_CollectionChanged;
         }
 
+        internal void Update()
+        {
+            // check if updates are ok
+            // safe shutdowns etc;
+
+            // Generate Update
+            //ValheimServerUtilities.UpdateServer(_config, _logger);
+            ValheimServerUtilities vsu = new ValheimServerUtilities(_services);
+            vsu.UpdateServer();
+            // restart server maybe
+        }
+
         private void Output_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
             switch (e.Action)
@@ -54,7 +67,13 @@ namespace ValheimCoreDiscordBot.Services
                         var value = item.ToString();
                         if (!string.IsNullOrEmpty(value))
                         {
-                            ProcessOutput(value);
+                            if (value.StartsWith("~|"))
+                            {
+                                // set server status
+                                SetGameState();
+                            }
+                            else
+                                ProcessOutput(value);
                         }
                     }
                     break;
@@ -72,51 +91,113 @@ namespace ValheimCoreDiscordBot.Services
             }
         }
 
+        private void SetGameState()
+        {
+            // sets playing message under bots name
+            _client.SetGameAsync(_server.GetGameState());
+        }
+
         private void ProcessOutput(string message)
         {
+            // sends message to specific channel
             var channel = _client.GetChannel(ChannelToken) as ISocketMessageChannel;
             channel.SendMessageAsync(message);
         }
 
         public string Start()
         {
-            _client.SetGameAsync("Valheim Server");
+            // starts server
             _server.StartServer();
-            //var channel = _client.GetChannel(704348887263084608) as ISocketMessageChannel;
-            //channel.SendMessageAsync("sent from service");
+            SetGameState();
             return "Starting";
         }
 
         public string Stop()
         {
-            _client.SetGameAsync("");
+            // stops server
             _server.KillServer();
+            SetGameState();
             return "Terminating";
         }
 
-        public string GetStatus()
+        public EmbedBuilder GetStatus()
         {
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine($"Status: {MyStatus}");
-            sb.AppendLine($"Started: {dateTime}");
+            EmbedBuilder embedBuilder = new EmbedBuilder();
+            embedBuilder.WithTitle("Server Details");
+            embedBuilder.AddField("Status", _server.Server_Details.Server_Status);
 
-            return sb.ToString();
+            switch (_server.Server_Details.Server_Status)
+            {
+                case ServerStatus.Starting:
+                    embedBuilder.WithColor(Color.Blue);
+                    break;
+                case ServerStatus.Terminating:
+                    embedBuilder.WithColor(Color.Red);
+                    break;
+                case ServerStatus.Running:
+                    embedBuilder.WithColor(Color.Green);
+                    embedBuilder.AddField("Uptime", getRuntime());
+                    break;
+                case ServerStatus.Recovered:
+                case ServerStatus.Offline:
+                default:
+                    break;
+            }
+            return embedBuilder;
         }
 
-        public string GetServerInfo()
+        public EmbedBuilder GetServerInfo()
         {
-            // initialize empty string builder for reply
-            var sb = new StringBuilder();
-            // append server IP and port
-            sb.AppendLine($"{GetPublicIP()}:{_config["Port"]}");
-            // append server password
-            sb.AppendLine($"{_config["Password"]}");
+            EmbedBuilder embedBuilder = new EmbedBuilder();
+            embedBuilder.WithTitle($"Valheim Server ({_server.Server_Details.Server_Status})");
+            embedBuilder.AddField($"{GetPublicIP()}:{_config["Port"]}", "IP:Port");
+            embedBuilder.AddField(_config["Password"], "Password");
 
-            return sb.ToString();
+            switch (_server.Server_Details.Server_Status)
+            {
+                case ServerStatus.Starting:
+                    embedBuilder.WithColor(Color.Blue);
+                    break;
+                case ServerStatus.Terminating:
+                    embedBuilder.WithColor(Color.Red);
+                    break;
+                case ServerStatus.Running:
+                    embedBuilder.WithColor(Color.Green);
+                    embedBuilder.AddField("Uptime", getRuntime());
+                    break;
+                case ServerStatus.Recovered:
+                case ServerStatus.Offline:
+                default:
+                    break;
+            }
+            return embedBuilder;
+        }
+
+        private string getRuntime()
+        {
+            var days = _server.Server_Details.Server_Runtime.Days;
+            var hours = _server.Server_Details.Server_Runtime.Hours;
+            var min = _server.Server_Details.Server_Runtime.Minutes;
+            var sec = _server.Server_Details.Server_Runtime.Seconds;
+            if (days > 0)
+            {
+                return $"{days} Days, {hours} Hours, {min} Minutes, {sec} Seconds";
+            }
+            else if (hours > 0)
+            {
+                return $"{hours} Hours, {min} Minutes, {sec} Seconds";
+            }
+            else if (min > 0)
+            {
+                return $"{min} Minutes, {sec} Seconds";
+            }
+            else
+                return $"{sec} Seconds";
         }
 
         private string GetPublicIP()
         {
+            // get ip using dyndns.org
             string url = "http://checkip.dyndns.org";
             System.Net.WebRequest req = System.Net.WebRequest.Create(url);
             System.Net.WebResponse resp = req.GetResponse();

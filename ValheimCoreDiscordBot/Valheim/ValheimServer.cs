@@ -36,17 +36,46 @@ namespace ValheimCoreDiscordBot.Valheim
             Players = new List<ValheimPlayer>();
         }
 
+        public string GetGameState()
+        { // generates message to use for Discord Playing message
+            string gamestate = string.Empty;
+            switch (Server_Details.Server_Status)
+            {
+                case ServerStatus.Starting:
+                    gamestate = "Valheim Starting";
+                    break;
+                case ServerStatus.Terminating:
+                    gamestate = "Valheim Stopping";
+                    break;
+                case ServerStatus.Running:                    
+                    gamestate = $"{GetPlayerCount()} Online";
+                    break;
+                case ServerStatus.Recovered:
+                case ServerStatus.Offline:
+                default:
+                    break;
+            }
+            return gamestate;
+        }
+
+        private string GetPlayerCount()
+        { // counts how many players are online
+            var count = Players.Count(x => x.IsLoggedIn);
+
+            return $"{count} Players";
+        }
+
         public async Task StartServer()
         {
-            if (Server_Details.Server_Status == ServerStatus.None)
+            if (Server_Details.Server_Status == ServerStatus.Offline)
             {
+                Server_Details.Server_Status = ServerStatus.Starting;
                 // check for any existing instance first
                 await Recover();
                 _logger.LogInformation("Starting Server");
                 var dir = _config["ServerDir"];
                 cmd = Command.Run("cmd.exe", new[] { "/c ", _config["ServerBat"] }, options => options.StartInfo(psi => psi.WorkingDirectory = dir));
 
-                Server_Details.Server_Status = ServerStatus.Starting;
                 ValheimServerUtilities.SaveProcessID(cmd.ProcessId.ToString());
                 try
                 {
@@ -59,7 +88,7 @@ namespace ValheimCoreDiscordBot.Valheim
                 }
                 catch (Exception ex)
                 {
-
+                    _logger.LogError(ex.ToString());
                 }
             }
             else
@@ -97,10 +126,13 @@ namespace ValheimCoreDiscordBot.Valheim
         }
 
         private void ParseEvent(DateTime dtout, string message)
-        {
+        { // logic to parse events coming from the server output
             if (message.Contains("game server connected", StringComparison.OrdinalIgnoreCase))
             {
                 LogEvent(dtout, message, ValheimEvents.GameServerConnected);
+                Server_Details.Server_Status = ServerStatus.Running;
+                Server_Details.Server_StartTime = DateTime.Now;
+                LogEvent(null, "~| Game Status Update", ValheimEvents.GameStatusUpdate);
             }
             else if (message.Contains("Got connection SteamID".ToLower(), StringComparison.OrdinalIgnoreCase))
             {
@@ -129,13 +161,14 @@ namespace ValheimCoreDiscordBot.Valheim
                     // clean up anything leftover
                     // the server has cleanly stopped if this message is received
                     cmd.Kill();
-                    Server_Details.Server_Status = ServerStatus.None;
+                    Server_Details.Server_Status = ServerStatus.Offline;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex.ToString());
                 }
                 LogEvent(dtout, "Server Terminated", ValheimEvents.GameServerDisconnected);
+                LogEvent(null, "~| Game Status Update", ValheimEvents.GameStatusUpdate);
             }
             //
         }
@@ -155,10 +188,13 @@ namespace ValheimCoreDiscordBot.Valheim
                     var player = Players.FirstOrDefault(x => x.SteamID.Equals(steamID));
                     if (player == null)
                     {
-                        player = new ValheimPlayer { SteamID = steamID };
+                        player = new ValheimPlayer { SteamID = steamID, IsLoggedIn = true };
                         Players.Add(player);
-                        LogEvent(dtout, $"{steamID} has connected!", myevent);
                     }
+                    player.IsLoggedIn = true;
+                    // setting debug event so it doesn't message discord
+                    LogEvent(dtout, $"{steamID} has connected!", ValheimEvents.DebugEvent);
+                    LogEvent(null, "~| Game Status Update", ValheimEvents.GameStatusUpdate);
                     LastPlayer = player;
                     break;
                 case ValheimEvents.PlayerDisconnected:
@@ -167,6 +203,7 @@ namespace ValheimCoreDiscordBot.Valheim
                     {
                         playerx.IsLoggedIn = false;
                         LogEvent(dtout, $"{playerx.LastCharacter} has logged out!", myevent);
+                        LogEvent(null, "~| Game Status Update", ValheimEvents.GameStatusUpdate);
                     }
                     break;
                 case ValheimEvents.PlayerCharacter:
@@ -237,41 +274,42 @@ namespace ValheimCoreDiscordBot.Valheim
             {
                 case ValheimEvents.GameServerConnected:
                 case ValheimEvents.GameServerDisconnected:
-                    //Console.ForegroundColor = ConsoleColor.Green;
-                    //Console.WriteLine($"{dtout}| {message}");
                     output.Add(message);
                     break;
                 case ValheimEvents.ClientHandshake:
+                    // don't send messages here for now
+                    _logger.LogInformation($"{dtout}| {message}");
+                    break;
                 case ValheimEvents.PlayerConnected:
                 case ValheimEvents.PlayerDisconnected:
                 case ValheimEvents.PlayerCharacter:
                 case ValheimEvents.PlayerCharacterDied:
-                    //Console.ForegroundColor = ConsoleColor.Yellow;
-                    //Console.WriteLine($"{dtout}| {message}");
                     output.Add(message);
                     break;
                 case ValheimEvents.WorldSaved:
+                    // do not send message for world save
+                    if (Server_Details.Server_Status.Equals(ServerStatus.Terminating))
+                    {
+                        output.Add(message);
+                    }
+                    _logger.LogInformation($"{dtout}| {message}");
+                    break;
                 case ValheimEvents.FoundLocation:
-                    //Console.ForegroundColor = ConsoleColor.Magenta;
-                    //Console.WriteLine($"{dtout}| {message}");
                     output.Add(message);
                     break;
                 case ValheimEvents.Debug:
-                    //Console.ForegroundColor = ConsoleColor.Gray;
-                    //Console.WriteLine($"{message}");
                     _logger.LogInformation($"{dtout}| {message}");
                     break;
                 case ValheimEvents.DebugEvent:
-                    //Console.ForegroundColor = ConsoleColor.Red;
-                    //Console.WriteLine($"{dtout}| {message}");
                     _logger.LogInformation($"{dtout}| {message}");
                     break;
                 case ValheimEvents.VersionCheck:
                     output.Add(message);
                     break;
+                case ValheimEvents.GameStatusUpdate:
+                    output.Add(message);
+                    break;
                 default:
-                    //Console.ForegroundColor = ConsoleColor.Gray;
-                    //Console.WriteLine($"{dtout}| {message}");
                     _logger.LogInformation($"{dtout}| {message}");
                     break;
             }
@@ -297,8 +335,8 @@ namespace ValheimCoreDiscordBot.Valheim
 
         public async Task KillServer()
         {
-            await cmd.TrySignalAsync(CommandSignal.ControlC);
             Server_Details.Server_Status = ServerStatus.Terminating;
+            await cmd.TrySignalAsync(CommandSignal.ControlC);
             //cmd.Kill();
             
             ValheimServerUtilities.ClearProcessID();
