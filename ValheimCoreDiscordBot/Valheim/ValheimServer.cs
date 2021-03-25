@@ -127,7 +127,7 @@ namespace ValheimCoreDiscordBot.Valheim
 
         private void ParseEvent(DateTime dtout, string message)
         { // logic to parse events coming from the server output
-            if (message.Contains("game server connected", StringComparison.OrdinalIgnoreCase))
+            if (message.Contains("Game server connected".ToLower(), StringComparison.OrdinalIgnoreCase))
             {
                 LogEvent(dtout, message, ValheimEvents.GameServerConnected);
                 Server_Details.Server_Status = ServerStatus.Running;
@@ -286,6 +286,7 @@ namespace ValheimCoreDiscordBot.Valheim
                 case ValheimEvents.GameServerConnected:
                 case ValheimEvents.GameServerDisconnected:
                     output.Add(message);
+                    _logger.LogInformation($"{dtout}| {message}");
                     break;
                 case ValheimEvents.ClientHandshake:
                     // don't send messages here for now
@@ -296,6 +297,7 @@ namespace ValheimCoreDiscordBot.Valheim
                 case ValheimEvents.PlayerCharacter:
                 case ValheimEvents.PlayerCharacterDied:
                     output.Add(message);
+                    _logger.LogInformation($"{dtout}| {message}");
                     break;
                 case ValheimEvents.WorldSaved:
                     // do not send message for world save
@@ -307,6 +309,7 @@ namespace ValheimCoreDiscordBot.Valheim
                     break;
                 case ValheimEvents.FoundLocation:
                     output.Add(message);
+                    _logger.LogInformation($"{dtout}| {message}");
                     break;
                 case ValheimEvents.Debug:
                     _logger.LogInformation($"{dtout}| {message}");
@@ -316,9 +319,11 @@ namespace ValheimCoreDiscordBot.Valheim
                     break;
                 case ValheimEvents.VersionCheck:
                     output.Add(message);
+                    _logger.LogInformation($"{dtout}| {message}");
                     break;
                 case ValheimEvents.GameStatusUpdate:
                     output.Add(message);
+                    _logger.LogInformation($"{dtout}| {message}");
                     break;
                 default:
                     _logger.LogInformation($"{dtout}| {message}");

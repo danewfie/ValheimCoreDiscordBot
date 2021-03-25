@@ -91,6 +91,12 @@ namespace ValheimCoreDiscordBot.Services
             }
         }
 
+        internal void OverrideStatus(ServerStatus stat)
+        {
+            _server.Server_Details.Server_Status = stat;
+            SetGameState();
+        }
+
         private void SetGameState()
         {
             // sets playing message under bots name
@@ -122,6 +128,7 @@ namespace ValheimCoreDiscordBot.Services
 
         public EmbedBuilder GetStatus()
         {
+            _logger.LogInformation($"Server Status: {_server.Server_Details.Server_Status} | Uptime: {getRuntime()}");
             EmbedBuilder embedBuilder = new EmbedBuilder();
             embedBuilder.WithTitle("Server Details");
             embedBuilder.AddField("Status", _server.Server_Details.Server_Status);

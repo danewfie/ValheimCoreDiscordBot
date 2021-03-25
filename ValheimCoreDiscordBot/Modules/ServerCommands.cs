@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ValheimCoreDiscordBot.Services;
+using ValheimCoreDiscordBot.Valheim;
 
 namespace ValheimCoreDiscordBot.Modules
 {
@@ -83,6 +84,14 @@ namespace ValheimCoreDiscordBot.Modules
             embedBuilder.WithFooter(footer => footer.Text = $"Commands are run using prefix '{_config["Prefix"]}' (ex. {_config["Prefix"]}help)");
 
             await ReplyAsync("Here's a list of commands and their description: ", false, embedBuilder.Build());
+        }
+
+        [Command("Override")]
+        [Summary("Sets the Server status to running")]
+        public async Task OverrideCommand()
+        {
+            _server.OverrideStatus(ServerStatus.Running);
+            await ReplyAsync("Status Override");
         }
     }
 }
