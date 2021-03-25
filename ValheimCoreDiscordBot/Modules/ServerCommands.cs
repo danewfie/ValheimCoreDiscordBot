@@ -35,7 +35,7 @@ namespace ValheimCoreDiscordBot.Modules
         }
 
         [Command("Stop")]
-        [Summary("Stopps Valheim Server")]
+        [Summary("Stops Valheim Server")]
         public async Task StopCommand()
         {
             _server.Stop();

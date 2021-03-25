@@ -192,6 +192,17 @@ namespace ValheimCoreDiscordBot.Valheim
                         Players.Add(player);
                     }
                     player.IsLoggedIn = true;
+                    try
+                    {
+                        if (_config["SteamAPIKey"] != null)
+                        {
+                            player.SteamPlayer = ValheimServerUtilities.GetSteamInfo(steamID).Result.response.players.FirstOrDefault();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex.ToString());
+                    }
                     // setting debug event so it doesn't message discord
                     LogEvent(dtout, $"{steamID} has connected!", ValheimEvents.DebugEvent);
                     LogEvent(null, "~| Game Status Update", ValheimEvents.GameStatusUpdate);

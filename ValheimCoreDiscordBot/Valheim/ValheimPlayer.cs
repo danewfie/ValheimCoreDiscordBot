@@ -10,6 +10,7 @@ namespace ValheimCoreDiscordBot.Valheim
         public bool IsLoggedIn { get; set; }
         public string LastCharacter { get; set; }
         public List<ValheimCharacter> Characters { get; set; }
+        public Player SteamPlayer { get; set; }
 
         public ValheimPlayer()
         {
